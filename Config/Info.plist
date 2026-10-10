@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Roundtable listens to the conversation around you to show live captions. Audio is processed on this iPhone and never recorded or uploaded.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Roundtable turns speech into captions using on-device speech recognition.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Roundtable shares captions with nearby phones at your table over Wi-Fi and Bluetooth, without using the internet.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tablecaptions._tcp</string>
+		<string>_tablecaptions._udp</string>
+	</array>
+</dict>
+</plist>
