@@ -145,6 +145,8 @@ final class CaptionStore: ObservableObject {
             MainActor.assumeIsolated { self.errorMessage = message }
         }
 
+        #if !os(macOS)
+        // AVAudioSession exists only on iPhone/iPad; Mac apps don't get audio interruptions.
         interruptionObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] notification in
@@ -156,6 +158,7 @@ final class CaptionStore: ObservableObject {
                 Task { await self.stopListening() }
             }
         }
+        #endif
 
         applyDirectionSettings()
         updateSharing()
