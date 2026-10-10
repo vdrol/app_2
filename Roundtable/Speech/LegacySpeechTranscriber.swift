@@ -1,7 +1,7 @@
 import AVFoundation
 import Speech
 
-/// Engine for iOS 17–25: `SFSpeechRecognizer` with on-device recognition required, so
+/// Engine for iOS 17–25 and macOS 14–15: `SFSpeechRecognizer` with on-device recognition required, so
 /// no audio ever leaves the phone.
 ///
 /// `SFSpeechRecognizer` keeps growing one partial transcript and rarely finalizes it

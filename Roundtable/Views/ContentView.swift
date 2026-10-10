@@ -15,9 +15,9 @@ struct ContentView: View {
                 ControlBar()
             }
             .navigationTitle("Roundtable")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigation) {
                     Button {
                         showPeers = true
                     } label: {
@@ -27,30 +27,39 @@ struct ContentView: View {
                                 .monospacedDigit()
                         }
                     }
-                    .accessibilityLabel("Nearby phones: \(store.connectedPeers.count)")
+                    .help("Nearby devices")
+                    .accessibilityLabel("Nearby devices: \(store.connectedPeers.count)")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                    .help("Settings")
                     .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView().environmentObject(store)
+                SettingsView()
+                    .environmentObject(store)
+                    .macSheetFrame()
             }
             .sheet(isPresented: $showPeers) {
-                PeersView().environmentObject(store)
+                PeersView()
+                    .environmentObject(store)
+                    .macSheetFrame()
             }
         }
+        #if os(iOS)
         .onChange(of: scenePhase) { _, phase in
             // Without a background audio mode iOS suspends the microphone, so stop cleanly.
+            // (A Mac app keeps captioning while it's in the background.)
             if phase == .background {
                 Task { await store.stopListening() }
             }
         }
+        #endif
     }
 }
 

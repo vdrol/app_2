@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A half-circle seen from above the table, with the phone at the bottom center.
+/// A half-circle seen from above the table, with this device at the bottom center.
 /// The five colored arcs are the speaker zones; the needle points at the current speaker.
 struct DirectionDial: View {
     var direction: Double?
@@ -47,7 +47,7 @@ struct DirectionDial: View {
                             .frame(width: 70)
                             .position(layout.point(direction: middle, radius: layout.radius - lineWidth - 16))
                     }
-                    Image(systemName: "iphone.gen3")
+                    Image(systemName: Platform.deviceSymbol)
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .position(x: layout.center.x, y: layout.center.y - 10)

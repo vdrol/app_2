@@ -26,7 +26,8 @@ struct DirectionHeader: View {
             }
 
             if store.isListening && !store.directionAvailable {
-                Label("This mic is mono, so direction is off. Captions still work.", systemImage: "info.circle")
+                Label("\(store.activeInputName ?? "This microphone") is mono, so direction is off. Choose a stereo mic in Settings to turn it on. Captions still work.",
+                      systemImage: "info.circle")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

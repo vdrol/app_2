@@ -1,7 +1,6 @@
 import AVFoundation
 import Speech
 import SwiftUI
-import UIKit
 
 /// App state: the transcript, listening state, nearby phones, and settings.
 @MainActor
@@ -22,6 +21,9 @@ final class CaptionStore: ObservableObject {
         static let sensitivity = "sensitivity"
         static let hapticsEnabled = "hapticsEnabled"
         static let zoneNames = "zoneNames"
+        static let inputID = "inputID"
+        static let leftChannel = "leftChannel"
+        static let rightChannel = "rightChannel"
     }
 
     static let maxEntries = 600
@@ -37,6 +39,11 @@ final class CaptionStore: ObservableObject {
     @Published private(set) var directionAvailable = false
     @Published private(set) var connectedPeers: [String] = []
     @Published private(set) var engineName: String?
+    @Published private(set) var inputOptions: [AudioInputOption] = []
+    @Published private(set) var selectedInputID: String
+    /// Channel count of the active input, or 0 before the first start.
+    @Published private(set) var activeChannelCount = 0
+    @Published private(set) var activeInputName: String?
     let meter: LiveMeter
 
     // MARK: Settings
@@ -56,6 +63,19 @@ final class CaptionStore: ObservableObject {
     @Published var sensitivity: Double {
         didSet {
             defaults.set(sensitivity, forKey: Keys.sensitivity)
+            applyDirectionSettings()
+        }
+    }
+    /// For inputs with more than two channels: which ones are left and right (0-based).
+    @Published var leftChannel: Int {
+        didSet {
+            defaults.set(leftChannel, forKey: Keys.leftChannel)
+            applyDirectionSettings()
+        }
+    }
+    @Published var rightChannel: Int {
+        didSet {
+            defaults.set(rightChannel, forKey: Keys.rightChannel)
             applyDirectionSettings()
         }
     }
@@ -82,7 +102,7 @@ final class CaptionStore: ObservableObject {
     private var currentLocalID: UUID?
     private var lastLocalZone: SpeakerZone?
     private var lastBroadcast = Date.distantPast
-    private let haptics: UIImpactFeedbackGenerator
+    private let feedback: SpeakerChangeFeedback
     private var interruptionObserver: NSObjectProtocol?
 
     init() {
@@ -91,9 +111,9 @@ final class CaptionStore: ObservableObject {
         defaults.set(id, forKey: Keys.deviceID)
         deviceID = id
         meter = LiveMeter()
-        haptics = UIImpactFeedbackGenerator(style: .medium)
+        feedback = SpeakerChangeFeedback()
 
-        let name = defaults.string(forKey: Keys.deviceName) ?? UIDevice.current.name
+        let name = defaults.string(forKey: Keys.deviceName) ?? Platform.deviceName
         deviceName = name
         roomCode = defaults.string(forKey: Keys.roomCode) ?? Self.defaultRoomCode
         sharingEnabled = defaults.object(forKey: Keys.sharingEnabled) as? Bool ?? true
@@ -101,6 +121,9 @@ final class CaptionStore: ObservableObject {
         hapticsEnabled = defaults.object(forKey: Keys.hapticsEnabled) as? Bool ?? true
         flipDirection = defaults.bool(forKey: Keys.flipDirection)
         sensitivity = defaults.object(forKey: Keys.sensitivity) as? Double ?? 3
+        selectedInputID = defaults.string(forKey: Keys.inputID) ?? AudioInputOption.automaticID
+        leftChannel = defaults.object(forKey: Keys.leftChannel) as? Int ?? 0
+        rightChannel = defaults.object(forKey: Keys.rightChannel) as? Int ?? 1
         let savedNames = defaults.stringArray(forKey: Keys.zoneNames) ?? []
         zoneNames = SpeakerZone.allCases.map { zone in
             zone.rawValue < savedNames.count ? savedNames[zone.rawValue] : zone.defaultName
@@ -188,13 +211,15 @@ final class CaptionStore: ObservableObject {
             }
 
             statusMessage = "Starting microphone…"
-            try audio.configureSession()
+            applyDirectionSettings()
             try await transcriber.start()
-            try audio.start()
+            try audio.start(preferredInputID: selectedInputID)
 
+            activeChannelCount = audio.channelCount
+            activeInputName = audio.inputName
             directionAvailable = audio.isStereo
             isListening = true
-            UIApplication.shared.isIdleTimerDisabled = true
+            Platform.setKeepAwake(true)
             startMeter()
         } catch {
             audio.stop()
@@ -209,7 +234,35 @@ final class CaptionStore: ObservableObject {
         audio.stop()
         stopMeter()
         await transcriber?.stop()
-        UIApplication.shared.isIdleTimerDisabled = false
+        Platform.setKeepAwake(false)
+    }
+
+    // MARK: - Microphone choice
+
+    func refreshInputs() {
+        inputOptions = audio.availableInputs()
+    }
+
+    /// Switches microphone, restarting capture if it's running.
+    func selectInput(_ id: String) {
+        guard id != selectedInputID else { return }
+        selectedInputID = id
+        defaults.set(id, forKey: Keys.inputID)
+        guard isListening else { return }
+        Task {
+            await stopListening()
+            await startListening()
+        }
+    }
+
+    /// Channels of the selected input: measured once it's running, otherwise as reported
+    /// by the device (Mac) or unknown (0).
+    var selectedInputChannelCount: Int {
+        if isListening { return activeChannelCount }
+        if let option = inputOptions.first(where: { $0.id == selectedInputID }), let count = option.channelCount {
+            return count
+        }
+        return activeChannelCount
     }
 
     private func requestPermissions() async throws {
@@ -223,7 +276,8 @@ final class CaptionStore: ObservableObject {
     }
 
     private func applyDirectionSettings() {
-        audio.estimator.configure(gain: sensitivity, flipped: flipDirection)
+        audio.estimator.configure(gain: sensitivity, flipped: flipDirection,
+                                  leftChannel: leftChannel, rightChannel: rightChannel)
     }
 
     // MARK: - Meter
@@ -302,7 +356,7 @@ final class CaptionStore: ObservableObject {
         guard hapticsEnabled, let direction else { return }
         let zone = SpeakerZone(direction: direction)
         if let lastLocalZone, lastLocalZone != zone {
-            haptics.impactOccurred()
+            feedback.signal()
         }
         lastLocalZone = zone
     }
@@ -383,7 +437,7 @@ final class CaptionStore: ObservableObject {
     func updateIdentity(name: String, room: String) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanRoom = String(room.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().prefix(12))
-        let newName = cleanName.isEmpty ? UIDevice.current.name : cleanName
+        let newName = cleanName.isEmpty ? Platform.deviceName : cleanName
         let newRoom = cleanRoom.isEmpty ? Self.defaultRoomCode : cleanRoom
         guard newName != deviceName || newRoom != roomCode else { return }
 

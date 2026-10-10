@@ -37,14 +37,19 @@ private struct EmptyTranscriptView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("How to use Roundtable")
                 .font(.title3.weight(.semibold))
-            tip("iphone.gen3", "Lay your phone flat in the middle of the table, with the top pointing away from you.")
-            tip("mic.fill", "Tap Start. Captions appear as people speak, colored by where they sit.")
-            tip("person.2.wave.2", "Friends can open Roundtable on their phones too. Phones with the same room code share captions, without needing the internet.")
+            #if os(macOS)
+            tip("laptopcomputer", "Put your Mac at the table, or put a stereo USB microphone in the middle of the table and choose it in Settings › Microphone.")
+            tip("waveform", "Direction needs a microphone with two or more channels. Most MacBook built-in mics are mono, so they give captions only.")
+            #else
+            tip(Platform.deviceSymbol, "Lay your \(Platform.deviceKind) flat in the middle of the table, with the top pointing away from you. A stereo USB mic works too.")
+            #endif
+            tip("mic.fill", "Start captions. Captions appear as people speak, colored by where they sit.")
+            tip("person.2.wave.2", "Other iPhones, iPads and Macs can run Roundtable too. Devices with the same room code share captions, without needing the internet.")
             tip("arrow.left.arrow.right", "If left and right look swapped, flip them in Settings.")
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func tip(_ symbol: String, _ text: String) -> some View {

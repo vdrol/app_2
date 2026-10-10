@@ -42,7 +42,7 @@ struct CaptionRow: View {
             }
         }
         .padding(12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 14))
         .accessibilityElement(children: .combine)
     }
 }

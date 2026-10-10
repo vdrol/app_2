@@ -9,13 +9,17 @@ enum TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphonePermissionDenied:
-            return "Microphone access is off. Turn it on in Settings › Privacy & Security › Microphone."
+            return "Microphone access is off. Turn it on in (System) Settings › Privacy & Security › Microphone."
         case .speechPermissionDenied:
-            return "Speech recognition is off. Turn it on in Settings › Privacy & Security › Speech Recognition."
+            return "Speech recognition is off. Turn it on in (System) Settings › Privacy & Security › Speech Recognition."
         case .localeNotSupported(let identifier):
             return "On-device captions aren't available for \(identifier) yet."
         case .onDeviceUnavailable:
+            #if os(macOS)
+            return "On-device speech recognition isn't available. In System Settings › Keyboard, turn on Dictation so macOS downloads the speech model, then try again."
+            #else
             return "On-device speech recognition isn't available. In Settings › General › Keyboard, turn on Dictation so iOS downloads the speech model, then try again."
+            #endif
         }
     }
 }
@@ -41,10 +45,10 @@ protocol CaptionTranscriber: AnyObject {
 }
 
 enum TranscriberFactory {
-    /// Uses `SpeechAnalyzer` on iOS 26 and later, and on-device `SFSpeechRecognizer` otherwise.
+    /// Uses `SpeechAnalyzer` on iOS/macOS 26 and later, and on-device `SFSpeechRecognizer` otherwise.
     static func makeTranscriber(locale: Locale) async throws -> CaptionTranscriber {
         #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             let modern = ModernSpeechTranscriber(locale: locale)
             do {
                 try await modern.prepare()

@@ -2,10 +2,10 @@
 import AVFoundation
 import Speech
 
-/// iOS 26+ engine built on `SpeechAnalyzer` and `SpeechTranscriber`.
+/// iOS 26+ / macOS 26+ engine built on `SpeechAnalyzer` and `SpeechTranscriber`.
 /// It is faster and more accurate than `SFSpeechRecognizer` and handles long-form
 /// conversation. It finalizes segments at natural pauses.
-@available(iOS 26.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 final class ModernSpeechTranscriber: CaptionTranscriber {
     var onResult: (@Sendable (String, Bool) -> Void)?
     var onError: (@Sendable (Error) -> Void)?

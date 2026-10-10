@@ -1,8 +1,9 @@
 import AVFoundation
 import Accelerate
 
-/// Estimates where a voice is coming from by comparing the loudness of the
-/// left and right channels of the iPhone's built-in stereo microphone.
+/// Estimates where a voice is coming from by comparing the loudness of two input
+/// channels: the stereo built-in mics of an iPhone or iPad, or any two channels of a
+/// stereo/multichannel microphone on iPhone, iPad or Mac.
 ///
 /// `process(_:)` is called on the real-time audio thread; everything else is
 /// called from the main thread, so all state is guarded by a lock.
@@ -17,6 +18,8 @@ final class DirectionEstimator: @unchecked Sendable {
     private let lock = NSLock()
     private var gain: Double = 3
     private var flipped = false
+    private var leftChannel = 0
+    private var rightChannel = 1
 
     private var hasStereo = false
     private var level: Float = 0
@@ -29,10 +32,28 @@ final class DirectionEstimator: @unchecked Sendable {
     /// - Parameters:
     ///   - gain: Stretches small level differences so that people a little to the side still read as "left"/"right".
     ///   - flipped: Swaps left and right, for when the phone lies the other way round.
-    func configure(gain: Double, flipped: Bool) {
+    ///   - leftChannel, rightChannel: Which input channels (0-based) are left and right.
+    ///     Only matters for interfaces with more than two channels.
+    func configure(gain: Double, flipped: Bool, leftChannel: Int = 0, rightChannel: Int = 1) {
         lock.lock(); defer { lock.unlock() }
         self.gain = gain
         self.flipped = flipped
+        self.leftChannel = leftChannel
+        self.rightChannel = rightChannel
+    }
+
+    /// The channel pair to compare for an input with `channelCount` channels, falling back
+    /// to the first two channels when the configured ones don't exist. `nil` for mono input.
+    func channelPair(channelCount: Int) -> (left: Int, right: Int)? {
+        guard channelCount >= 2 else { return nil }
+        lock.lock()
+        let left = leftChannel
+        let right = rightChannel
+        lock.unlock()
+        guard left != right, (0..<channelCount).contains(left), (0..<channelCount).contains(right) else {
+            return (0, 1)
+        }
+        return (left, right)
     }
 
     func reset() {
@@ -54,14 +75,14 @@ final class DirectionEstimator: @unchecked Sendable {
         let channels = Int(buffer.format.channelCount)
         var left: Float = 0
         var right: Float = 0
-        if channels >= 2 {
+        if let pair = channelPair(channelCount: channels) {
             if buffer.format.isInterleaved {
                 let stride = vDSP_Stride(channels)
-                vDSP_rmsqv(data[0], stride, &left, vDSP_Length(frames))
-                vDSP_rmsqv(data[0] + 1, stride, &right, vDSP_Length(frames))
+                vDSP_rmsqv(data[0] + pair.left, stride, &left, vDSP_Length(frames))
+                vDSP_rmsqv(data[0] + pair.right, stride, &right, vDSP_Length(frames))
             } else {
-                vDSP_rmsqv(data[0], 1, &left, vDSP_Length(frames))
-                vDSP_rmsqv(data[1], 1, &right, vDSP_Length(frames))
+                vDSP_rmsqv(data[pair.left], 1, &left, vDSP_Length(frames))
+                vDSP_rmsqv(data[pair.right], 1, &right, vDSP_Length(frames))
             }
             ingest(level: (left + right) / 2, pan: Self.pan(left: left, right: right), stereo: true)
         } else {

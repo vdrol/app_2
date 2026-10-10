@@ -9,5 +9,8 @@ struct RoundtableApp: App {
             ContentView()
                 .environmentObject(store)
         }
+        #if os(macOS)
+        .defaultSize(width: 560, height: 860)
+        #endif
     }
 }
